@@ -21,5 +21,6 @@ resultado del ataque
 <img width="674" height="316" alt="image" src="https://github.com/user-attachments/assets/be9a5680-7c20-48c0-84c2-df03641f13ec" />
 
 resultado de la api
-<img width="1017" height="767" alt="image" src="https://github.com/user-attachments/assets/7be66330-e293-4e6d-9144-99a816b374cc" />
+<img width="1019" height="660" alt="image" src="https://github.com/user-attachments/assets/9869bb1e-1a9c-4410-8d4e-a85e93d645ae" />
+
 
