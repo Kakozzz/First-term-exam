@@ -1,4 +1,7 @@
 fastapi
-uvicorn
+uvicorn[standard]
+sqlmodel
+sqlalchemy
 pydantic
-passlib[bcrypt]
+pydantic-settings
+typing-extensions
