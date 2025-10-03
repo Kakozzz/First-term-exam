@@ -1,113 +1,101 @@
-from fastapi import FastAPI, HTTPException, status
-from pydantic import BaseModel
-from typing import List, Dict, Optional
-from passlib.context import CryptContext
+from fastapi import FastAPI, HTTPException
+from sqlmodel import SQLModel, Field
+from typing import List, Dict, Any, Optional
 
-# --- Configuración Inicial ---
-app = FastAPI(title="Laboratorio de Fuerza Bruta Controlada")
-# Usamos Bcrypt para hashear contraseñas de forma segura
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-# --- Modelos Pydantic ---
-class UserInDB(BaseModel):
-    # Modelo para el usuario ALMACENADO (guarda el hash)
-    id: int
-    username: str
-    password_hash: str 
+# ------------------------------
+# Modelos
+# ------------------------------
+class Usuario(SQLModel):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    nombre_usuario: str
+    contrasena: str
     email: Optional[str] = None
-    is_active: bool = True
+    is_active: bool = Field(default=True)
 
-class UserCreate(BaseModel):
-    # Modelo para la creación (recibe texto plano)
-    username: str
-    password: str 
+class UsuarioLogin(SQLModel):
+    nombre_usuario: str
+    contrasena: str
+
+class CrearUsuario(SQLModel):
+    nombre_usuario: str
+    contrasena: str
     email: Optional[str] = None
 
-class LoginRequest(BaseModel):
-    # Modelo para el login (recibe texto plano)
-    username: str
-    password: str
+# ------------------------------
+# Base de datos en memoria
+# ------------------------------
+usuarios_db: List[Dict[str, Any]] = [
+       {"id": 1, "nombre_usuario": "user1", "contrasena": "a1c", "email": "user1@example.com", "is_active": True}
+]
 
-# --- Funciones de Seguridad (Hashing) ---
-def hash_password(password: str) -> str:
-    """Hashea la contraseña usando Bcrypt."""
-    return pwd_context.hash(password)
+def generar_id_usuario() -> int:
+    if usuarios_db:
+        return max(u["id"] for u in usuarios_db) + 1
+    return 1
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verifica una contraseña en texto plano contra el hash almacenado."""
-    return pwd_context.verify(plain_password, hashed_password)
+# ------------------------------
+# App FastAPI
+# ------------------------------
+app = FastAPI(
+    title="API de Gestión de Usuarios",
+    description="API by kakozz."
+)
 
-# --- "Base de Datos" en Memoria y Precarga ---
-db: Dict[int, UserInDB] = {}
-next_id = 1
-
-def preload_test_user():
-    """Carga un usuario de prueba (lab_user:123456) al inicio de la API."""
-    global next_id
-    
-    TEST_USERNAME = "lab_user"
-    TEST_PASSWORD = "123456" 
-    TEST_EMAIL = "target_brute_force@lab.com"
-    
-    # El ataque necesita que el hash de esta contraseña esté en la base de datos
-    hashed_password = hash_password(TEST_PASSWORD)
-    
-    user = UserInDB(
-        id=next_id,
-        username=TEST_USERNAME, 
-        password_hash=hashed_password,
-        email=TEST_EMAIL,
-        is_active=True
-    )
-    db[next_id] = user
-    next_id += 1
-    print(f"--- [LAB] Usuario de prueba '{TEST_USERNAME}' cargado (Contraseña: {TEST_PASSWORD}) ---")
-
-# Ejecutar la precarga al iniciar el módulo
-preload_test_user()
-
-# --- Endpoints ---
-
-@app.post("/users", status_code=status.HTTP_201_CREATED)
-async def create_user(user_data: UserCreate):
-    """Crea un nuevo usuario (almacenando el hash de la contraseña)."""
-    global next_id
-    
-    if any(user.username == user_data.username for user in db.values()):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El nombre de usuario ya existe")
-    
-    hashed_password = hash_password(user_data.password)
-    
-    user = UserInDB(
-        id=next_id,
-        username=user_data.username,
-        password_hash=hashed_password,
-        email=user_data.email
-    )
-    db[next_id] = user
-    next_id += 1
-    
-    return {"id": user.id, "username": user.username, "email": user.email, "message": "Usuario creado exitosamente"}
-
-@app.get("/users")
-async def list_users():
-    """Lista todos los usuarios (sin mostrar el hash)."""
-    return [{"id": u.id, "username": u.username, "email": u.email, "is_active": u.is_active} for u in db.values()]
-
-# --- ENDPOINT DE AUTENTICACIÓN (Objetivo del Ataque) ---
+# ------------------------------
+# Endpoints
+# ------------------------------
+@app.get("/")
+async def leer_raiz():
+    return {"mensaje": "Bienvenido al API de Gestión de Usuarios"}
 
 @app.post("/login")
-async def login_user(form_data: LoginRequest):
-    """Endpoint de autenticación, objetivo del ataque de fuerza bruta."""
-    user = next((u for u in db.values() if u.username == form_data.username), None)
+async def iniciar_sesion(usuario: UsuarioLogin):
+    for u in usuarios_db:
+        if usuario.nombre_usuario == u["nombre_usuario"] and usuario.contrasena == u["contrasena"]:
+            return {"mensaje": "Login correcto", "usuario": u["nombre_usuario"]}
+    raise HTTPException(status_code=401, detail="Credenciales inválidas")
+
+@app.post("/users", response_model=Usuario)
+async def crear_usuario(usuario_data: CrearUsuario):
+    if any(u['nombre_usuario'] == usuario_data.nombre_usuario for u in usuarios_db):
+        raise HTTPException(status_code=400, detail="El nombre de usuario ya está en uso")
     
-    # Mensaje genérico para no dar pistas sobre si el usuario existe o no
-    if not user:
-        return {"message": "Login fallido"} 
+    nuevo_usuario_dict = {
+        "id": generar_id_usuario(),
+        "nombre_usuario": usuario_data.nombre_usuario,
+        "contrasena": usuario_data.contrasena,
+        "email": usuario_data.email,
+        "is_active": True
+    }
+    
+    usuarios_db.append(nuevo_usuario_dict)
+    return nuevo_usuario_dict
 
-    # Verificar la contraseña contra el hash almacenado
-    if not verify_password(form_data.password, user.password_hash):
-        return {"message": "Login fallido"} 
+@app.get("/users", response_model=List[Usuario])
+async def listar_usuarios():
+    return usuarios_db
 
-    # Éxito
-    return {"message": "Login exitoso"}
+@app.get("/users/{usuario_id}", response_model=Usuario)
+async def obtener_usuario(usuario_id: int):
+    for u in usuarios_db:
+        if u.get("id") == usuario_id:
+            return u
+    raise HTTPException(status_code=404, detail=f"Usuario con id {usuario_id} no encontrado")
+
+@app.put("/users/{usuario_id}", response_model=Usuario)
+async def actualizar_usuario(usuario_id: int, datos: dict):
+    for u in usuarios_db:
+        if u.get("id") == usuario_id:
+            for key, value in datos.items():
+                if key not in ["id", "contrasena"]:
+                    u[key] = value
+            return u
+    raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+@app.delete("/users/{usuario_id}")
+async def eliminar_usuario(usuario_id: int):
+    for index, u in enumerate(usuarios_db):
+        if u.get("id") == usuario_id:
+            usuarios_db.pop(index)
+            return {"mensaje": "Usuario eliminado"}
+    raise HTTPException(status_code=404, detail="Usuario no encontrado")
