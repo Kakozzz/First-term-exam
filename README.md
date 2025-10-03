@@ -3,7 +3,7 @@
 Este proyecto contiene una API de usuarios creada con FastAPI y una herramienta de fuerza bruta educativa en Python para interactuar con la API. Es totalmente
 educativo y sirve para aprender sobre APIs, solicitudes HTTP y testing de seguridad básica.
 
- Contenido del proyecto
+ Contenido del proyecto-
 
 main.py: API de gestión de usuarios en memoria (crear, listar, actualizar, eliminar y login).
 brute_login.py: Script de fuerza bruta educativa con efecto tipo Matrix.
