@@ -1,10 +1,8 @@
 from fastapi import FastAPI, HTTPException
 from sqlmodel import SQLModel, Field
 from typing import List, Dict, Any, Optional
+import random
 
-# ------------------------------
-# Modelos
-# ------------------------------
 class Usuario(SQLModel):
     id: Optional[int] = Field(default=None, primary_key=True)
     nombre_usuario: str
@@ -21,29 +19,21 @@ class CrearUsuario(SQLModel):
     contrasena: str
     email: Optional[str] = None
 
-# ------------------------------
-# Base de datos en memoria
-# ------------------------------
 usuarios_db: List[Dict[str, Any]] = [
-       {"id": 1, "nombre_usuario": "user1", "contrasena": "a1c", "email": "user1@example.com", "is_active": True}
+    {"id": random.randint(10000, 99999), "nombre_usuario": "user1", "contrasena": "a1c", "email": "user1@example.com", "is_active": True}
 ]
 
 def generar_id_usuario() -> int:
-    if usuarios_db:
-        return max(u["id"] for u in usuarios_db) + 1
-    return 1
+    while True:
+        nuevo_id = random.randint(10000, 99999)
+        if not any(u["id"] == nuevo_id for u in usuarios_db):
+            return nuevo_id
 
-# ------------------------------
-# App FastAPI
-# ------------------------------
 app = FastAPI(
     title="API de Gestión de Usuarios",
     description="API by kakozz."
 )
 
-# ------------------------------
-# Endpoints
-# ------------------------------
 @app.get("/")
 async def leer_raiz():
     return {"mensaje": "Bienvenido al API de Gestión de Usuarios"}
